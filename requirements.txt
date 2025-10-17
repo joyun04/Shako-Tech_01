@@ -2,6 +2,8 @@ fastapi
 uvicorn
 geopandas
 shapely
-fiona
-pandas
 jinja2
+pandas
+fiona
+pyproj
+rtree
