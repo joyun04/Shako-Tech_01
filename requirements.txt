@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+geopandas
+shapely
+fiona
+pandas
+jinja2

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Yongdu Map Viewer</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<style>
+  #map { height: 100vh; width: 100%; filter: blur(2px); }
+  #overlay {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 300px; background: white; padding: 20px; border-radius: 15px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.3); z-index: 10000; font-family: sans-serif;
+  }
+  h2 { text-align: center; margin-top: 0; font-size: 18px; }
+  .checkboxes { display: flex; flex-direction: column; max-height: 200px; overflow-y: auto; margin-bottom: 10px; }
+  .checkboxes label { margin: 5px 0; }
+  input[type="text"], select { width: 100%; margin-bottom: 8px; padding: 4px; box-sizing: border-box; }
+  #applyBtn { width: 100%; padding: 8px 0; font-size: 14px; border: none; border-radius: 5px; background: #0078d7; color: white; cursor: pointer; }
+  #applyBtn:hover { background: #005fa3; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div id="overlay">
+  <h2>정보 입력 & POI 선택</h2>
+  <label>이름: <input type="text" id="user_name"></label>
+  <label>성별:
+    <select id="user_sex"><option value="남">남</option><option value="여">여</option></select>
+  </label>
+  <label>직업: <input type="text" id="user_job"></label>
+  <h3>표시할 POI 선택</h3>
+  <div class="checkboxes" id="checkboxes">
+    {% for cat in categories %}
+      <label><input type="checkbox" value="{{cat}}"> {{cat}}</label>
+    {% endfor %}
+  </div>
+  <button id="applyBtn">지도 갱신</button>
+</div>
+
+<script>
+const map = L.map('map').setView([37.57, 127.04], 15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+let buildingLayer, poiLayer;
+let userData = {};
+
+fetch("/api/pois").then(res => res.json()).then(data => {
+  poiLayer = L.geoJSON(data, { pointToLayer: (f, latlng) => L.circleMarker(latlng, {radius:3, color:"red"}), onEachFeature:(f,l)=>l.bindPopup(f.properties.place_name) });
+});
+
+document.getElementById("applyBtn").addEventListener("click", () => {
+  const name = document.getElementById("user_name").value.trim();
+  const sex = document.getElementById("user_sex").value;
+  const job = document.getElementById("user_job").value.trim();
+  if(!name||!job){ alert("이름과 직업을 입력하세요"); return; }
+  userData={name,sex,job};
+  console.log("사용자정보:", userData);
+
+  const checked = Array.from(document.querySelectorAll("#checkboxes input[type=checkbox]:checked")).map(chk=>chk.value);
+  if(checked.length===0){ alert("POI 선택하세요"); return; }
+
+  if(buildingLayer) map.removeLayer(buildingLayer);
+  if(poiLayer) map.removeLayer(poiLayer);
+
+  Promise.all(checked.map(cat=>fetch(`/api/buildings?category=${cat}`).then(r=>r.json()))).then(results=>{
+    const merged={type:"FeatureCollection", features:[]};
+    results.forEach(res=>{ if(res.features) merged.features.push(...res.features); });
+
+    buildingLayer=L.geoJSON(merged, {style:{color:"#3a7bd5", fillColor:"#a2d2ff", fillOpacity:0.5, weight:1}, onEachFeature:(f,l)=>{
+      const name=f.properties.POS_BUL_NM||"알 수 없음";
+      const link=`https://new.land.naver.com/search?query=${encodeURIComponent(name)}`;
+      l.bindPopup(`<b>${name}</b><br><a href="${link}" target="_blank">네이버 부동산</a>`);
+    }}).addTo(map);
+
+    poiLayer.eachLayer(layer=>{ if(checked.includes(layer.feature.properties.category)) layer.addTo(map); });
+
+    const poiCoords=[];
+    poiLayer.eachLayer(layer=>{ if(checked.includes(layer.feature.properties.category)){
+      const c=layer.feature.geometry.coordinates; poiCoords.push([c[1],c[0]]); }});
+    if(poiCoords.length>0) map.fitBounds(poiCoords);
+
+    document.getElementById("overlay").style.display="none";
+    document.getElementById("map").style.filter="none";
+  });
+});
+</script>
+</body>
+</html>
