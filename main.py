@@ -7,12 +7,13 @@ import os
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
-
 # -----------------------------
 # 파일 경로
 # -----------------------------
-buildings_path = r"D:/preprocessing/map/do_buld5.shp"
-poi_path = r"D:/preprocessing/POI/yongdu_pois.shp"
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+buildings_path = os.path.join(BASE_DIR, "map", "do_buld5.shp")
+poi_path = os.path.join(BASE_DIR, "POI", "yongdu_pois.shp")
 
 # -----------------------------
 # 데이터 불러오기
